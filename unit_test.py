@@ -37,5 +37,12 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(distance_from_ancestor(tree, get_column(tree, 'cost')), 2)
 
 
+def test_dependency3(self):
+    tree = get_tree(7)
+    self.assertEqual(tree.graph.number_of_nodes(), 12)
+    self.assertEqual(tree.graph.number_of_edges(), 5)
+    self.assertEqual(len(tree.graph.in_edges(get_column(tree, 'name_surname'))), 2)
+
+
 if __name__ == '__main__':
     unittest.main()
