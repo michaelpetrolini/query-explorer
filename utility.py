@@ -1,10 +1,10 @@
-import pickle
-
 import matplotlib.colors as pltc
 import networkx as nx
+import sqlparse
 from matplotlib import pyplot as plt
 
 from generator import ColumnTree
+from structures import Column
 
 
 def is_black_font_friendly(hex_str: str):
@@ -32,8 +32,29 @@ def show_clean_graph(tree: ColumnTree):
 
 
 def save_graph(graph: nx.DiGraph, path: str):
-    pickle.dump(graph, open(path, 'wb'))
+    nx.write_gexf(graph, open(path, 'wb'))
 
 
 def load_graph(path: str):
-    return pickle.load(open(path, 'rb'))
+    return nx.read_gexf(open(path, 'rb'))
+
+
+def get_tree(index: int):
+    with open(f'unit_test/query{index}.sql', 'r') as r:
+        query = sqlparse.format(r.read(), reindent=True, keyword_case='upper', strip_comments=True)
+        statement = sqlparse.parse(query)[0]
+        tree = ColumnTree()
+        tree.generate(statement)
+        return tree
+
+
+def get_column(tree: ColumnTree, name: str):
+    for c in tree.graph.nodes:
+        if not c.cte and c.name == name:
+            return c
+    return None
+
+
+def distance_from_ancestor(tree: ColumnTree, column: Column):
+    parents = [n[0] for n in tree.graph.in_edges(column)]
+    return max([distance_from_ancestor(tree, c) for c in parents]) + 1 if parents else 0

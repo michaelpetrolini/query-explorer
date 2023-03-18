@@ -207,7 +207,7 @@ class ColumnTree:
                     if not table.dataset:
                         # I check every column already in the graph looking for possible parents
                         for parent_col in [c for c in self.graph.nodes if table.name == c.cte]:
-                            if dependency.name == parent_col.name:
+                            if dependency.name == parent_col.name.split('.')[-1]:
                                 self.graph.add_edge(parent_col, column)
                     # I found a source table matching with the column alias
                     elif dependency.table_alias and (
