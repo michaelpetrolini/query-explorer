@@ -42,6 +42,17 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(tree.graph.number_of_edges(), 5)
         self.assertEqual(len(tree.graph.in_edges(get_column(tree, 'name_surname'))), 2)
 
+    def test_unnamed_parenthesis_from(self):
+        tree = get_tree('unnamed_parenthesis_from')
+        self.assertEqual(tree.graph.number_of_nodes(), 8)
+        self.assertEqual(tree.graph.number_of_edges(), 4)
+
+    def test_named_parenthesis_from(self):
+        tree = get_tree('named_parenthesis_from')
+        self.assertEqual(tree.graph.number_of_nodes(), 10)
+        self.assertEqual(tree.graph.number_of_edges(), 4)
+        self.assertTrue(get_column(tree, 'id_order', 'orders'))
+
 
 if __name__ == '__main__':
     unittest.main()

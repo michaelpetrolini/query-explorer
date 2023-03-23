@@ -96,7 +96,11 @@ class ColumnTree:
 
     def _from(self, token):
         tables = set()
-        if isinstance(token, Parenthesis):
+        if isinstance(token, Identifier) and isinstance(token.tokens[0], Parenthesis):
+            cte = token.tokens[-1].value
+            self.generate(token.tokens[0], cte)
+            tables.add(Table(name=cte, alias=None))
+        elif isinstance(token, Parenthesis):
             table_id = str(uuid.uuid4())
             self.generate(token, table_id)
             tables.add(Table(name=table_id, alias=None))

@@ -31,7 +31,7 @@ class Dependency:
 
 class Column:
     def __init__(self, name, cte=None):
-        self.dependencies = None
+        self.dependencies = set()
         self.name = name
         self.cte = cte
 
