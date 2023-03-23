@@ -39,8 +39,8 @@ def load_graph(path: str):
     return nx.read_gexf(open(path, 'rb'))
 
 
-def get_tree(index: int):
-    with open(f'unit_test/query{index}.sql', 'r') as r:
+def get_tree(filename: str):
+    with open(f'unit_test/{filename}.sql', 'r') as r:
         query = sqlparse.format(r.read(), reindent=True, keyword_case='upper', strip_comments=True)
         statement = sqlparse.parse(query)[0]
         tree = ColumnTree()
@@ -48,9 +48,9 @@ def get_tree(index: int):
         return tree
 
 
-def get_column(tree: ColumnTree, name: str):
+def get_column(tree: ColumnTree, name: str, cte: str = None):
     for c in tree.graph.nodes:
-        if not c.cte and c.name == name:
+        if c.cte == cte and c.name == name:
             return c
     return None
 
