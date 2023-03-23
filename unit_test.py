@@ -57,6 +57,11 @@ class TestQuery(unittest.TestCase):
         tree = get_tree('constant_values')
         self.assertEqual(len(tree.graph.nodes), 3)
 
+    def test_wildcard_of_dependency(self):
+        tree = get_tree('wildcard_of_dependency')
+        self.assertEqual(len([c for c in tree.graph.nodes if c.cte is None]),
+                         len([c for c in tree.graph.nodes if c.cte == 'orders']))
+
 
 if __name__ == '__main__':
     unittest.main()

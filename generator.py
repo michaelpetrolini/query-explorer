@@ -16,6 +16,9 @@ def _table(token):
 
 
 def _dependency(parameter):
+    if parameter.ttype == Wildcard:
+        elements = parameter.value.split('.')
+        return Dependency(name=elements[-1], table_alias=elements[0] if len(elements) > 1 else None)
     return Dependency(name=parameter.get_real_name(),
                       table_alias=parameter.get_parent_name())
 
@@ -60,11 +63,13 @@ def _get_dependencies(token):
                 yield from _get_dependencies(element)
         else:
             yield _dependency(token)
+    elif token.ttype == Wildcard:
+        yield _dependency(token)
 
 
 def _column(token, cte):
-    name = token.get_alias() or token.value
-    column = Column(name=name, cte=cte)
+    name = (token.get_alias() or token.value) if isinstance(token, Identifier) else token.value
+    column = Column(name=name, cte=cte, is_wildcard=token.ttype == Wildcard)
     if isinstance(token, Identifier) and token.tokens[0].ttype in Literal:
         column.value = token.tokens[0].value
     else:
@@ -174,6 +179,7 @@ class ColumnTree:
     def generate(self, iterator, cte=None):
         columns = set()
         tables = set()
+        wildcards = set()
         index, token = iterator.token_next(-1)
         while token:
             if token.ttype == CTE:
@@ -183,7 +189,7 @@ class ColumnTree:
                 index, token = iterator.token_next(index)
                 if isinstance(token, IdentifierList):
                     for t in token.tokens:
-                        if isinstance(t, Identifier):
+                        if isinstance(t, Identifier) or t.ttype == Wildcard:
                             columns.add(_column(t, cte))
                 else:
                     columns.add(_column(token, cte))
@@ -199,11 +205,11 @@ class ColumnTree:
                 columns.update(_where(token, cte))
             index, token = iterator.token_next(index)
 
-        self._add_columns_to_graph(columns, tables)
+        self._add_columns_to_graph(columns, tables, wildcards)
 
         return columns
 
-    def _add_columns_to_graph(self, columns, tables):
+    def _add_columns_to_graph(self, columns, tables, wildcards):
         for column in columns:
             if column.value:
                 self.graph.add_node(column)
@@ -214,6 +220,10 @@ class ColumnTree:
                             table.alias != dependency.table_alias and table.name != dependency.table_alias):
                         continue
 
+                    if column.is_wildcard:
+                        for parent_col in [c for c in self.graph.nodes if table.name == c.cte]:
+                            new_column = Column(name=parent_col.name, cte=column.cte)
+                            self.graph.add_edge(parent_col, new_column)
                     if not table.dataset:
                         # I check every column already in the graph looking for possible parents
                         for parent_col in [c for c in self.graph.nodes if table.name == c.cte]:
@@ -226,7 +236,7 @@ class ColumnTree:
                         self.graph.add_node(column)
 
                 # If a field doesn't have an alias and doesn't depend on any parent, I have to guess the source table
-                if not dependency.dataset and column not in self.graph.nodes:
+                if not column.is_wildcard and not dependency.dataset and column not in self.graph.nodes:
                     table = [t for t in tables if t.dataset][0]
                     _add_attributes(dependency, table)
                     self.graph.add_node(column)

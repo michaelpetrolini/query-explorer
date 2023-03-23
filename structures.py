@@ -30,10 +30,11 @@ class Dependency:
 
 
 class Column:
-    def __init__(self, name, cte=None, value=None):
+    def __init__(self, name, cte=None, is_wildcard=False, value=None):
         self.dependencies = set()
         self.name = name
         self.cte = cte
+        self.is_wildcard = is_wildcard
         self.value = value
 
     def __str__(self):
