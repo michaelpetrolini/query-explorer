@@ -1,6 +1,6 @@
 import networkx as nx
 from sqlparse.sql import Where, Comparison, Identifier, IdentifierList, Function, Case, Parenthesis
-from sqlparse.tokens import CTE, DML, Keyword
+from sqlparse.tokens import CTE, DML, Keyword, Wildcard, Literal
 import uuid
 
 from structures import Column, Dependency, Table
@@ -65,7 +65,10 @@ def _get_dependencies(token):
 def _column(token, cte):
     name = token.get_alias() or token.value
     column = Column(name=name, cte=cte)
-    column.dependencies = _get_dependencies(token)
+    if isinstance(token, Identifier) and token.tokens[0].ttype in Literal:
+        column.value = token.tokens[0].value
+    else:
+        column.dependencies = _get_dependencies(token)
     return column
 
 
@@ -202,6 +205,9 @@ class ColumnTree:
 
     def _add_columns_to_graph(self, columns, tables):
         for column in columns:
+            if column.value:
+                self.graph.add_node(column)
+                continue
             for dependency in column.dependencies:
                 for table in tables:
                     if dependency.table_alias and (

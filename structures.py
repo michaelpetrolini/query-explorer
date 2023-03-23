@@ -30,14 +30,16 @@ class Dependency:
 
 
 class Column:
-    def __init__(self, name, cte=None):
+    def __init__(self, name, cte=None, value=None):
         self.dependencies = set()
         self.name = name
         self.cte = cte
+        self.value = value
 
     def __str__(self):
         col_repr = f"name: {self.name}"
         col_repr += f"\ncte: {self.cte}" if self.cte else ""
+        col_repr += f"\nvalue: {self.value}" if self.value else ""
         for dep in self.dependencies:
             col_repr = col_repr + f"\n\t{dep}"
         return col_repr
@@ -47,11 +49,13 @@ class Column:
             return NotImplemented
 
         return self.name == other.name and \
-            self.cte == other.cte
+            self.cte == other.cte and \
+            self.value == other.value
 
     def __hash__(self):
         return hash(self.name) + \
-            hash(self.cte)
+            hash(self.cte) + \
+            hash(self.value)
 
 
 class Table:

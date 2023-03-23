@@ -53,6 +53,10 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(tree.graph.number_of_edges(), 4)
         self.assertTrue(get_column(tree, 'id_order', 'orders'))
 
+    def test_constant_values(self):
+        tree = get_tree('constant_values')
+        self.assertEqual(len(tree.graph.nodes), 3)
+
 
 if __name__ == '__main__':
     unittest.main()
