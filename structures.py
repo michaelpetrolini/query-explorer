@@ -28,6 +28,10 @@ class Dependency:
             hash(self.project) + \
             hash(self.table_alias)
 
+    def copy(self):
+        return Dependency(name=self.name, table=self.table, dataset=self.dataset,
+                          project=self.project, table_alias=self.table_alias)
+
 
 class Column:
     def __init__(self, name, cte=None, is_wildcard=False, value=None):

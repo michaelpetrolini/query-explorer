@@ -27,7 +27,7 @@ def show(graph: nx.DiGraph):
 
 def show_clean_graph(tree: ColumnTree):
     used_columns = tree.get_used_columns()
-    subgraph = tree.graph.subgraph(used_columns)
+    subgraph = tree.get_graph().subgraph(used_columns)
     show(subgraph)
 
 
@@ -49,12 +49,12 @@ def get_tree(filename: str):
 
 
 def get_column(tree: ColumnTree, name: str, cte: str = None):
-    for c in tree.graph.nodes:
+    for c in tree.get_nodes():
         if c.cte == cte and c.name == name:
             return c
     return None
 
 
 def distance_from_ancestor(tree: ColumnTree, column: Column):
-    parents = [n[0] for n in tree.graph.in_edges(column)]
+    parents = [n[0] for n in tree.get_graph().in_edges(column)]
     return max([distance_from_ancestor(tree, c) for c in parents]) + 1 if parents else 0
