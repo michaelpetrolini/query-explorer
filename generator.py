@@ -240,6 +240,7 @@ class ColumnTree:
                                                           table_alias=t.alias) for t in tables])
                 if not column.dependencies:
                     raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
+                self._graph.add_node(column)
 
             for dependency in column.dependencies:
                 for table in tables:
@@ -248,9 +249,7 @@ class ColumnTree:
                         continue
 
                     if column.is_wildcard:
-                        if table.dataset:
-                            self._graph.add_node(column)
-                        else:
+                        if not table.dataset:
                             for parent_col in [c for c in self._graph.nodes if table.name == c.cte]:
                                 new_column = Column(name=parent_col.name, cte=column.cte)
                                 self._graph.add_edge(parent_col, new_column)
@@ -292,11 +291,18 @@ class ColumnTree:
                         wildcards = [c for c in self._graph.nodes if c.is_wildcard and c.cte in [t.name for t in tables]]
                         if not wildcards:
                             raise LogicError(ExceptionType.NO_TABLE_FOUND, dependency)
-                        parent_col = Column(name=column.name, cte=wildcards[0].cte)
-                        parent_col.dependencies = {dep.copy() for dep in wildcards[0].dependencies}
-                        for dep in parent_col.dependencies:
-                            dep.name = column.name
-                        self._graph.add_edge(parent_col, column)
+                        self._manage_wildcard(column, wildcards[0])
                     else:
                         _add_attributes(dependency, source_tables[0])
                         self._graph.add_node(column)
+
+    def _manage_wildcard(self, column, wildcard):
+        parent_col = Column(name=column.name, cte=wildcard.cte)
+        parent_col.dependencies = {dep.copy() for dep in wildcard.dependencies}
+        for dep in parent_col.dependencies:
+            dep.name = column.name
+        self._graph.add_edge(parent_col, column)
+
+        wildcards = [c for c in self._graph.nodes if c.is_wildcard and c.cte == list(parent_col.dependencies)[0].table]
+        if wildcards:
+            self._manage_wildcard(parent_col, wildcards[0])

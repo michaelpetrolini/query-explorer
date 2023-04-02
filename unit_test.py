@@ -67,6 +67,12 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len([c for c in tree.get_nodes() if c.cte is None]),
                          len([c for c in tree.get_nodes() if c.cte == 'orders']))
 
+    def test_wildcard_iteration(self):
+        tree = get_tree('wildcard_recursion')
+        self.assertTrue(get_column(tree, 'id_order', 'orders'))
+        self.assertTrue(get_column(tree, 'quantity', 'orders'))
+        self.assertTrue(get_column(tree, 'weekday', 'orders'))
+
 
 if __name__ == '__main__':
     unittest.main()
