@@ -5,6 +5,7 @@ class ExceptionType(Enum):
     NO_TABLE_FOUND = "No source table has been found for the following dependency"
     WILDCARD_MULTIPLE_SOURCES = "A wildcard with an alias is pointing to multiple tables"
     ALIAS_WITH_NO_SOURCES = "Found no dependencies for the following column"
+    TWIN_NOT_FOUND = "No related column found in the union logic for the following column name"
 
 
 class LogicError(Exception):

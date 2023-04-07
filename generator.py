@@ -53,19 +53,21 @@ def _case(token):
 
 
 def _get_dependencies(token):
+    dependencies = set()
     if isinstance(token, Function) and token.get_name() != 'ROW_NUMBER':
-        yield from _function(token)
+        dependencies.update(_function(token))
     elif isinstance(token, Case):
-        yield from _case(token)
+        dependencies.update(_case(token))
     elif isinstance(token, Identifier):
         elements = [elem for elem in token.tokens if type(elem) in (Function, Case)]
         if elements:
             for element in elements:
-                yield from _get_dependencies(element)
+                dependencies.update(_get_dependencies(element))
         else:
-            yield _dependency(token)
+            dependencies.add(_dependency(token))
     elif token.ttype == Wildcard:
-        yield _dependency(token)
+        dependencies.add(_dependency(token))
+    return dependencies
 
 
 def _column(token, cte):
@@ -94,9 +96,27 @@ def _on(token, cte):
 
 
 def _add_attributes(dependency: Dependency, table: Table):
-    dependency.name = table.name
+    dependency.table = table.name
     dependency.dataset = table.dataset
     dependency.project = table.project
+
+
+def _union(token, columns):
+    def add_dependency(tkn):
+        name = (tkn.get_alias() or tkn.value) if isinstance(tkn, Identifier) else tkn.value
+        twins = [c for c in columns if c.name == name]
+        if not twins:
+            raise LogicError(ExceptionType.TWIN_NOT_FOUND, tkn.value)
+        dependencies = {d for d in twins[0].dependencies}
+        dependencies.update(_get_dependencies(tkn))
+        twins[0].dependencies = dependencies
+
+    if isinstance(token, IdentifierList):
+        for t in token.tokens:
+            if isinstance(t, Identifier) or t.ttype == Wildcard:
+                add_dependency(t)
+    else:
+        add_dependency(token)
 
 
 class ColumnTree:
@@ -215,6 +235,10 @@ class ColumnTree:
                 columns.update(_on(token, cte))
             elif isinstance(token, Where):
                 columns.update(_where(token, cte))
+            elif token.ttype == Keyword and token.value.split(' ')[0] == "UNION":
+                index, token = iterator.token_next(index)
+                index, token = iterator.token_next(index)
+                _union(token, columns)
             index, token = iterator.token_next(index)
 
         self._add_columns_to_graph(columns, tables)
@@ -228,18 +252,19 @@ class ColumnTree:
                 continue
 
             if column.is_wildcard:
-                table_alias = list(column.dependencies)[0].table_alias
-                if table_alias:
-                    column.dependencies = set([Dependency('*', table=t.name, dataset=t.dataset, project=t.project,
-                                                          table_alias=table_alias) for t in tables if
-                                               t.alias == table_alias or t.name == table_alias])
-                    if len(column.dependencies) > 1:
-                        raise LogicError(ExceptionType.WILDCARD_MULTIPLE_SOURCES, column)
-                else:
-                    column.dependencies = set([Dependency('*', table=t.name, dataset=t.dataset, project=t.project,
-                                                          table_alias=t.alias) for t in tables])
-                if not column.dependencies:
-                    raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
+                for dependency in column.dependencies:
+                    table_alias = dependency.table_alias
+                    if table_alias:
+                        # If the wildcard has a table alias, then we must have a relationship with a specific table
+                        sources = [t for t in tables if t.alias == table_alias or t.name == table_alias]
+                        if len(sources) > 1:
+                            raise LogicError(ExceptionType.WILDCARD_MULTIPLE_SOURCES, column)
+                    else:
+                        # If the wildcard doesn't have any reference to a table, then we use a table for each dependency
+                        sources = [t for t in tables if t.name not in [d.table for d in column.dependencies]]
+                        if not sources:
+                            raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
+                    _add_attributes(dependency, sources[0])
                 self._graph.add_node(column)
 
             for dependency in column.dependencies:
@@ -248,11 +273,11 @@ class ColumnTree:
                             table.alias != dependency.table_alias and table.name != dependency.table_alias):
                         continue
 
-                    if column.is_wildcard:
-                        if not table.dataset:
-                            for parent_col in [c for c in self._graph.nodes if table.name == c.cte]:
-                                new_column = Column(name=parent_col.name, cte=column.cte)
-                                self._graph.add_edge(parent_col, new_column)
+                    # If the wildcard depends on a temp table, I create a column for every parent already in the graph
+                    if column.is_wildcard and not table.dataset:
+                        for parent_col in [c for c in self._graph.nodes if table.name == c.cte]:
+                            new_column = Column(name=parent_col.name, cte=column.cte)
+                            self._graph.add_edge(parent_col, new_column)
                         continue
 
                     # I found a source table matching with the column alias
@@ -288,7 +313,9 @@ class ColumnTree:
                 if not column.is_wildcard and not dependency.dataset and column not in self._graph.nodes:
                     source_tables = [t for t in tables if t.dataset]
                     if not source_tables:
-                        wildcards = [c for c in self._graph.nodes if c.is_wildcard and c.cte in [t.name for t in tables]]
+                        # I check if there's a wildcard in the graph that can be used as a parent
+                        wildcards = [c for c in self._graph.nodes if
+                                     c.is_wildcard and c.cte in [t.name for t in tables]]
                         if not wildcards:
                             raise LogicError(ExceptionType.NO_TABLE_FOUND, dependency)
                         self._manage_wildcard(column, wildcards[0])
@@ -297,12 +324,14 @@ class ColumnTree:
                         self._graph.add_node(column)
 
     def _manage_wildcard(self, column, wildcard):
+        # Create a parent column combining the information from the wildcard and the child column
         parent_col = Column(name=column.name, cte=wildcard.cte)
         parent_col.dependencies = {dep.copy() for dep in wildcard.dependencies}
         for dep in parent_col.dependencies:
             dep.name = column.name
         self._graph.add_edge(parent_col, column)
 
+        # I check if the parent wildcard has itself a wildcard dependency and, in that case, I repeat the process
         wildcards = [c for c in self._graph.nodes if c.is_wildcard and c.cte == list(parent_col.dependencies)[0].table]
         if wildcards:
             self._manage_wildcard(parent_col, wildcards[0])
