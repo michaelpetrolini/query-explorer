@@ -94,11 +94,12 @@ def _add_attributes(dependency: Dependency, table: Table):
 def _union(token, columns):
     def add_dependency(tkn):
         name = (tkn.get_alias() or tkn.value) if isinstance(tkn, Identifier) else tkn.value
-        twins = [c for c in columns if c.name == name]
+        twins = [c for c in columns if c.name.split('.')[-1] == name.split('.')[-1]]
         if not twins:
             raise LogicError(ExceptionType.TWIN_NOT_FOUND, tkn.value)
         dependencies = {d for d in twins[0].dependencies}
         dependencies.update(_get_dependencies(tkn))
+        twins[0].name = twins[0].name.split('.')[-1]
         twins[0].dependencies = dependencies
 
     if isinstance(token, IdentifierList):

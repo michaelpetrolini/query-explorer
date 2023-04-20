@@ -79,6 +79,12 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'quantity'))), 2)
         self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'price'))), 2)
 
+    def test_union_alias(self):
+        tree = get_tree('union_alias')
+        self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'id_product'))), 2)
+        self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'quantity'))), 2)
+        self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'price'))), 2)
+
     def test_union_wildcard(self):
         tree = get_tree('union_wildcard')
         self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'id_product'))), 2)
