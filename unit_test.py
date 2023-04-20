@@ -85,6 +85,14 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'quantity'))), 2)
         self.assertEqual(len(tree._graph.in_edges(get_column(tree, 'price'))), 2)
 
+    def test_row_number(self):
+        tree = get_tree('row_number')
+        self.assertEqual(len(get_column(tree, 'rn1').dependencies), 1)
+        self.assertEqual(len(get_column(tree, 'rn2').dependencies), 2)
+        self.assertEqual(len(get_column(tree, 'rn3').dependencies), 3)
+        self.assertEqual(len(get_column(tree, 'rn4').dependencies), 4)
+        self.assertEqual(len(get_column(tree, 'rn5').dependencies), 4)
+
 
 if __name__ == '__main__':
     unittest.main()
