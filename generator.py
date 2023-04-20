@@ -62,7 +62,7 @@ def _get_dependencies(token):
 
 def _column(token, cte):
     name = (token.get_alias() or token.value) if isinstance(token, Identifier) else token.value
-    column = Column(name=name, cte=cte, is_wildcard=token.ttype == Wildcard)
+    column = Column(name=name, cte=cte, is_wildcard=token.value.split('.')[-1] == '*')
     if isinstance(token, Identifier) and token.tokens[0].ttype in Literal:
         column.value = token.tokens[0].value
     else:
@@ -227,8 +227,8 @@ class ColumnTree:
             elif isinstance(token, Where):
                 columns.update(_where(token, cte))
             elif token.ttype == Keyword and token.value.split(' ')[0] == "UNION":
-                index, token = iterator.token_next(index)
-                index, token = iterator.token_next(index)
+                while type(token) not in (Identifier, IdentifierList) and token.ttype != Wildcard:
+                    index, token = iterator.token_next(index)
                 _union(token, columns)
             index, token = iterator.token_next(index)
 
@@ -247,7 +247,7 @@ class ColumnTree:
                 if column.is_wildcard:
                     self._prepare_wildcard(column, dependency, tables)
 
-                if dependency.table_alias:
+                if dependency.table_alias and not column.is_wildcard:
                     self._manage_table_alias(column, dependency, tables)
                     continue
 
