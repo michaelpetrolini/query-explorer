@@ -55,7 +55,14 @@ class TestQuery(unittest.TestCase):
 
     def test_constant_values(self):
         tree = get_tree('constant_values')
-        self.assertEqual(tree._graph.number_of_nodes(), 3)
+        self.assertEqual(tree._graph.number_of_nodes(), 4)
+
+    def test_constant_dependencies(self):
+        tree = get_tree('constant_dependencies')
+        self.assertEqual(len(get_column(tree, 'device_type').dependencies), 1)
+        self.assertEqual(len(get_column(tree, 'flg_country_uk').dependencies), 1)
+        self.assertEqual(len(get_column(tree, 'currency').dependencies), 2)
+        self.assertEqual(len(get_column(tree, 'formula_result').dependencies), 1)
 
     def test_wildcard_of_dependency(self):
         tree = get_tree('wildcard_of_dependency')

@@ -1,7 +1,8 @@
+import uuid
+
 import networkx as nx
 from sqlparse.sql import Where, Comparison, Identifier, IdentifierList, Function, Case, Parenthesis
-from sqlparse.tokens import CTE, DML, Keyword, Wildcard, Literal
-import uuid
+from sqlparse.tokens import CTE, DML, Keyword, Wildcard
 
 from exceptions import LogicError, ExceptionType
 from structures import Column, Dependency, Table
@@ -14,6 +15,12 @@ def _table(token):
                    dataset=sources[-2],
                    project=sources[-3] if len(sources) > 2 else None,
                    alias=token.get_alias())
+
+
+def _is_constant(field):
+    return (field.startswith('\"') and field.endswith('\"')) \
+        or (field.startswith('\'') and field.endswith('\'')) \
+        or field.replace('.', '', 1).isdigit()
 
 
 def _dependency(parameter):
@@ -44,7 +51,7 @@ def _get_dependencies(token):
         if elements:
             for element in elements:
                 yield from _get_dependencies(element)
-        else:
+        elif not _is_constant(token.value):
             yield _dependency(token)
     elif isinstance(token, IdentifierList):
         for e in token.tokens:
@@ -63,7 +70,7 @@ def _get_dependencies(token):
 def _column(token, cte):
     name = (token.get_alias() or token.value) if isinstance(token, Identifier) else token.value
     column = Column(name=name, cte=cte, is_wildcard=token.value.split('.')[-1] == '*')
-    if isinstance(token, Identifier) and token.tokens[0].ttype in Literal:
+    if isinstance(token, Identifier) and _is_constant(token.tokens[0].value):
         column.value = token.tokens[0].value
     else:
         column.dependencies = set(_get_dependencies(token))
@@ -244,6 +251,8 @@ class ColumnTree:
                 continue
 
             for dependency in column.dependencies:
+                if not dependency:
+                    print(column)
                 dependency_found = False
                 if column.is_wildcard:
                     self._prepare_wildcard(column, dependency, tables)
