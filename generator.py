@@ -20,7 +20,8 @@ def _table(token):
 def _is_constant(field):
     return (field.startswith('\"') and field.endswith('\"')) \
         or (field.startswith('\'') and field.endswith('\'')) \
-        or field.replace('.', '', 1).isdigit()
+        or field.replace('.', '', 1).isdigit() \
+        or field.upper() == "NULL"
 
 
 def _dependency(parameter):
@@ -67,9 +68,9 @@ def _get_dependencies(token):
         yield _dependency(token)
 
 
-def _column(token, cte):
+def _column(token, cte, is_auxiliary=False):
     name = (token.get_alias() or token.value) if isinstance(token, Identifier) else token.value
-    column = Column(name=name, cte=cte, is_wildcard=token.value.split('.')[-1] == '*')
+    column = Column(name=name, cte=cte, is_wildcard=token.value.split('.')[-1] == '*', is_auxiliary=is_auxiliary)
     if isinstance(token, Identifier) and _is_constant(token.tokens[0].value):
         column.value = token.tokens[0].value
     else:
@@ -81,14 +82,14 @@ def _where(token, cte):
     columns = set()
     for t in token.tokens:
         if isinstance(t, Comparison):
-            columns.add(_column(t.left, cte))
+            columns.add(_column(t.left, cte, is_auxiliary=True))
     return columns
 
 
 def _on(token, cte):
     columns = set()
-    columns.add(_column(token.left, cte))
-    columns.add(_column(token.right, cte))
+    columns.add(_column(token.left, cte, is_auxiliary=True))
+    columns.add(_column(token.right, cte, is_auxiliary=True))
     return columns
 
 
@@ -264,14 +265,14 @@ class ColumnTree:
                 for table in [t for t in tables if not t.dataset]:
                     # If the wildcard depends on a temp table, I create a column for every parent already in the graph
                     if column.is_wildcard:
-                        for parent_col in [c for c in self._graph.nodes if table.name == c.cte]:
+                        for parent_col in [c for c in self._graph.nodes if not c.is_auxiliary and table.name == c.cte]:
                             new_column = Column(name=parent_col.name, cte=column.cte)
                             self._graph.add_edge(parent_col, new_column)
                         dependency_found = True
                         continue
 
                     # I check every column already in the graph looking for possible parents
-                    for parent_col in [c for c in self._graph.nodes if table.name == c.cte]:
+                    for parent_col in [c for c in self._graph.nodes if not c.is_auxiliary and table.name == c.cte]:
                         if dependency.name == parent_col.name.split('.')[-1]:
                             self._graph.add_edge(parent_col, column)
                             dependency_found = True
@@ -329,20 +330,18 @@ class ColumnTree:
             _add_attributes(dependency, table)
             self._graph.add_node(column)
         else:
-            wildcards = [c for c in self._graph.nodes if c.cte == table.name and c.is_wildcard]
+            wildcards = [c for c in self._graph.nodes if not c.is_auxiliary and c.cte == table.name and c.is_wildcard]
             if wildcards:
                 parent_col = Column(name=column.name, cte=wildcards[0].cte)
                 parent_col.dependencies = {dep.copy() for dep in wildcards[0].dependencies}
                 for dep in parent_col.dependencies:
                     dep.name = column.name
             else:
-                parent_cols = [c for c in self._graph.nodes if c.cte == table.name and
+                parent_cols = [c for c in self._graph.nodes if not c.is_auxiliary and c.cte == table.name and
                                dependency.name == c.name.split('.')[-1]]
                 if not parent_cols:
                     raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
                 if len(parent_cols) > 1:
-                    for col in parent_cols:
-                        print(col)
                     raise LogicError(ExceptionType.MULTIPLE_ALIAS_COLUMNS_FOUND, dependency)
                 parent_col = parent_cols[0]
             self._graph.add_edge(parent_col, column)

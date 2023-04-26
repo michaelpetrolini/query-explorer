@@ -34,12 +34,13 @@ class Dependency:
 
 
 class Column:
-    def __init__(self, name, cte=None, is_wildcard=False, value=None):
+    def __init__(self, name, cte=None, is_wildcard=False, value=None, is_auxiliary=False):
         self.dependencies = set()
         self.name = name
         self.cte = cte
         self.is_wildcard = is_wildcard
         self.value = value
+        self.is_auxiliary = is_auxiliary
 
     def __str__(self):
         col_repr = f"name: {self.name}"

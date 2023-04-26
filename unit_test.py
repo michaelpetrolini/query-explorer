@@ -55,7 +55,7 @@ class TestQuery(unittest.TestCase):
 
     def test_constant_values(self):
         tree = get_tree('constant_values')
-        self.assertEqual(tree._graph.number_of_nodes(), 4)
+        self.assertEqual(tree._graph.number_of_nodes(), 5)
 
     def test_constant_dependencies(self):
         tree = get_tree('constant_dependencies')
