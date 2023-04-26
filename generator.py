@@ -341,6 +341,8 @@ class ColumnTree:
                 if not parent_cols:
                     raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
                 if len(parent_cols) > 1:
-                    raise LogicError(ExceptionType.NO_TABLE_FOUND, dependency)
+                    for col in parent_cols:
+                        print(col)
+                    raise LogicError(ExceptionType.MULTIPLE_ALIAS_COLUMNS_FOUND, dependency)
                 parent_col = parent_cols[0]
             self._graph.add_edge(parent_col, column)

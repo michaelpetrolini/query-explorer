@@ -72,3 +72,18 @@ class Table:
 
     def __str__(self):
         return f"Table[name: {self.name}, dataset: {self.dataset}, project: {self.project}, alias: {self.alias}]"
+
+    def __eq__(self, other):
+        if not isinstance(other, Table):
+            return NotImplemented
+
+        return self.name == other.name and \
+            self.dataset == other.dataset and \
+            self.project == other.project and \
+            self.alias == other.alias
+
+    def __hash__(self):
+        return hash(self.name) + \
+            hash(self.dataset) + \
+            hash(self.project) + \
+            hash(self.alias)
