@@ -111,6 +111,7 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(len(get_column(tree, 'rn3').dependencies), 3)
         self.assertEqual(len(get_column(tree, 'rn4').dependencies), 4)
         self.assertEqual(len(get_column(tree, 'rn5').dependencies), 4)
+        self.assertEqual(len(get_column(tree, 'rn6').dependencies), 4)
 
 
 if __name__ == '__main__':

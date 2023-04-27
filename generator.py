@@ -48,13 +48,13 @@ def _case(token):
 
 def _get_dependencies(token):
     if isinstance(token, Identifier):
-        elements = [e for e in token.tokens if type(e) in (Function, Case)]
+        elements = [e for e in token.tokens if type(e) in (Function, Case, Parenthesis)]
         if elements:
             for element in elements:
                 yield from _get_dependencies(element)
         elif not _is_constant(token.value):
             yield _dependency(token)
-    elif isinstance(token, IdentifierList):
+    elif isinstance(token, IdentifierList) or isinstance(token, Parenthesis):
         for e in token.tokens:
             yield from _get_dependencies(e)
     elif isinstance(token, Function):
@@ -116,6 +116,15 @@ def _union(token, columns):
                 add_dependency(t)
     else:
         add_dependency(token)
+
+
+def _add_columns(columns, cte, token):
+    if isinstance(token, IdentifierList):
+        for t in token.tokens:
+            if isinstance(t, Identifier) or t.ttype == Wildcard:
+                columns.add(_column(t, cte))
+    else:
+        columns.add(_column(token, cte))
 
 
 class ColumnTree:
@@ -212,25 +221,23 @@ class ColumnTree:
         columns = set()
         tables = set()
         index, token = iterator.token_next(-1)
+        dml = False
         while token:
             if token.ttype == CTE:
                 index, token = iterator.token_next(index)
                 self._cte_list(token) if isinstance(token, IdentifierList) else self._cte(token)
             elif token.ttype == DML:
+                dml = True
                 index, token = iterator.token_next(index)
                 if token.value == "DISTINCT":
                     index, token = iterator.token_next(index)
-                if isinstance(token, IdentifierList):
-                    for t in token.tokens:
-                        if isinstance(t, Identifier) or t.ttype == Wildcard:
-                            columns.add(_column(t, cte))
-                else:
-                    columns.add(_column(token, cte))
-            elif isinstance(token, Identifier) and token.value.startswith('OVER'):
-                columns.add(_column(token, cte))
+                _add_columns(columns, cte, token)
             elif token.ttype == Keyword and token.value.split(' ')[-1] in ["FROM", "JOIN"]:
+                dml = False
                 index, token = iterator.token_next(index)
                 tables.update(self._from(token))
+            elif dml:
+                _add_columns(columns, cte, token)
             elif isinstance(token, Comparison):
                 columns.update(_on(token, cte))
             elif isinstance(token, Where):
