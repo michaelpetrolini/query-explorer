@@ -1,3 +1,29 @@
+class Table:
+    def __init__(self, name, alias, dataset=None, project=None):
+        self.name = name
+        self.dataset = dataset
+        self.project = project
+        self.alias = alias
+
+    def __str__(self):
+        return f"Table[name: {self.name}, dataset: {self.dataset}, project: {self.project}, alias: {self.alias}]"
+
+    def __eq__(self, other):
+        if not isinstance(other, Table):
+            return NotImplemented
+
+        return self.name == other.name and \
+            self.dataset == other.dataset and \
+            self.project == other.project and \
+            self.alias == other.alias
+
+    def __hash__(self):
+        return hash(self.name) + \
+            hash(self.dataset) + \
+            hash(self.project) + \
+            hash(self.alias)
+
+
 class Dependency:
     def __init__(self, name, table=None, dataset=None, project=None, table_alias=None):
         self.name = name
@@ -32,6 +58,11 @@ class Dependency:
         return Dependency(name=self.name, table=self.table, dataset=self.dataset,
                           project=self.project, table_alias=self.table_alias)
 
+    def add_attributes(self, table: Table):
+        self.table = table.name
+        self.dataset = table.dataset
+        self.project = table.project
+
 
 class Column:
     def __init__(self, name, cte=None, is_wildcard=False, value=None, is_auxiliary=False):
@@ -62,29 +93,3 @@ class Column:
         return hash(self.name) + \
             hash(self.cte) + \
             hash(self.value)
-
-
-class Table:
-    def __init__(self, name, alias, dataset=None, project=None):
-        self.name = name
-        self.dataset = dataset
-        self.project = project
-        self.alias = alias
-
-    def __str__(self):
-        return f"Table[name: {self.name}, dataset: {self.dataset}, project: {self.project}, alias: {self.alias}]"
-
-    def __eq__(self, other):
-        if not isinstance(other, Table):
-            return NotImplemented
-
-        return self.name == other.name and \
-            self.dataset == other.dataset and \
-            self.project == other.project and \
-            self.alias == other.alias
-
-    def __hash__(self):
-        return hash(self.name) + \
-            hash(self.dataset) + \
-            hash(self.project) + \
-            hash(self.alias)

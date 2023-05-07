@@ -8,7 +8,7 @@ from exceptions import LogicError, ExceptionType
 from structures import Column, Dependency, Table
 
 
-def _table(token):
+def _table(token: Identifier) -> Table:
     sources = token.value.replace('`', '').split()[0].split('.')
     return Table(name=sources[0], alias=token.get_alias()) if len(sources) == 1 \
         else Table(name=sources[-1],
@@ -17,14 +17,14 @@ def _table(token):
                    alias=token.get_alias())
 
 
-def _is_constant(field):
+def _is_constant(field: str):
     return (field.startswith('\"') and field.endswith('\"')) \
         or (field.startswith('\'') and field.endswith('\'')) \
         or field.replace('.', '', 1).isdigit() \
         or field.upper() == "NULL"
 
 
-def _dependency(parameter):
+def _dependency(parameter) -> Dependency:
     if parameter.ttype == Wildcard:
         elements = parameter.value.split('.')
         return Dependency(name=elements[-1], table_alias=elements[0] if len(elements) > 1 else None)
@@ -32,12 +32,12 @@ def _dependency(parameter):
                       table_alias=parameter.get_parent_name())
 
 
-def _function(function):
+def _function(function: Function):
     for elem in function.tokens[-1].tokens:
         yield from _get_dependencies(elem)
 
 
-def _case(token):
+def _case(token: Case):
     for condition, value in token.get_cases(skip_ws=True):
         if condition:
             for elem in condition:
@@ -68,7 +68,7 @@ def _get_dependencies(token):
         yield _dependency(token)
 
 
-def _column(token, cte, is_auxiliary=False):
+def _column(token, cte: str, is_auxiliary: bool = False) -> Column:
     name = (token.get_alias() or token.value) if isinstance(token, Identifier) else token.value
     column = Column(name=name, cte=cte, is_wildcard=token.value.split('.')[-1] == '*', is_auxiliary=is_auxiliary)
     if isinstance(token, Identifier) and _is_constant(token.tokens[0].value):
@@ -78,28 +78,20 @@ def _column(token, cte, is_auxiliary=False):
     return column
 
 
-def _where(token, cte):
-    columns = set()
+def _where(token: Where, cte: str):
     for t in token.tokens:
         if isinstance(t, Comparison):
-            columns.add(_column(t.left, cte, is_auxiliary=True))
-    return columns
+            yield from _comparison(t, cte)
 
 
-def _on(token, cte):
-    columns = set()
-    columns.add(_column(token.left, cte, is_auxiliary=True))
-    columns.add(_column(token.right, cte, is_auxiliary=True))
-    return columns
+def _comparison(token: Comparison, cte: str):
+    if not _is_constant(token.left.value):
+        yield _column(token.left, cte, is_auxiliary=True)
+    if not _is_constant(token.right.value):
+        yield _column(token.right, cte, is_auxiliary=True)
 
 
-def _add_attributes(dependency: Dependency, table: Table):
-    dependency.table = table.name
-    dependency.dataset = table.dataset
-    dependency.project = table.project
-
-
-def _union(token, columns):
+def _union(token, columns: set[Column]):
     def add_dependency(tkn):
         name = (tkn.get_alias() or tkn.value) if isinstance(tkn, Identifier) else tkn.value
         twins = [c for c in columns if c.name.split('.')[-1] == name.split('.')[-1]]
@@ -118,13 +110,13 @@ def _union(token, columns):
         add_dependency(token)
 
 
-def _add_columns(columns, cte, token):
+def _columns(cte: str, token):
     if isinstance(token, IdentifierList):
         for t in token.tokens:
             if isinstance(t, Identifier) or t.ttype == Wildcard:
-                columns.add(_column(t, cte))
+                yield _column(t, cte)
     else:
-        columns.add(_column(token, cte))
+        yield _column(token, cte)
 
 
 class ColumnTree:
@@ -144,22 +136,20 @@ class ColumnTree:
         [self._graph.remove_node(wildcard) for wildcard in wildcards]
 
     def _from(self, token):
-        tables = set()
         if isinstance(token, Identifier) and isinstance(token.tokens[0], Parenthesis):
             cte = token.tokens[-1].value
             self.generate(token.tokens[0], cte)
-            tables.add(Table(name=cte, alias=None))
+            yield Table(name=cte, alias=None)
         elif isinstance(token, Parenthesis):
             table_id = str(uuid.uuid4())
             self.generate(token, table_id)
-            tables.add(Table(name=table_id, alias=None))
+            yield Table(name=table_id, alias=None)
         elif isinstance(token, IdentifierList):
             for t in token.tokens:
                 if isinstance(t, Identifier):
-                    tables.add(_table(t))
+                    yield _table(t)
         else:
-            tables.add(_table(token))
-        return tables
+            yield _table(token)
 
     def test_dependencies(self):
         linked_columns = {n for n in self._graph.nodes if self._graph.in_edges(n) or self._graph.out_edges(n)}
@@ -217,7 +207,7 @@ class ColumnTree:
                 self._cte(token)
             index, token = iterator.token_next(index)
 
-    def generate(self, iterator, cte=None):
+    def generate(self, iterator, cte: str = None):
         columns = set()
         tables = set()
         index, token = iterator.token_next(-1)
@@ -231,15 +221,15 @@ class ColumnTree:
                 index, token = iterator.token_next(index)
                 if token.value == "DISTINCT":
                     index, token = iterator.token_next(index)
-                _add_columns(columns, cte, token)
+                columns.update(_columns(cte, token))
             elif token.ttype == Keyword and token.value.split(' ')[-1] in ["FROM", "JOIN"]:
                 dml = False
                 index, token = iterator.token_next(index)
                 tables.update(self._from(token))
             elif dml:
-                _add_columns(columns, cte, token)
+                columns.update(_columns(cte, token))
             elif isinstance(token, Comparison):
-                columns.update(_on(token, cte))
+                columns.update(_comparison(token, cte))
             elif isinstance(token, Where):
                 columns.update(_where(token, cte))
             elif token.ttype == Keyword and token.value.split(' ')[0] == "UNION":
@@ -295,7 +285,7 @@ class ColumnTree:
                             raise LogicError(ExceptionType.NO_TABLE_FOUND, dependency)
                         self._manage_wildcard(column, wildcards[0])
                     else:
-                        _add_attributes(dependency, source_tables[0])
+                        dependency.add_attributes(source_tables[0])
                         self._graph.add_node(column)
 
     def _prepare_wildcard(self, column, dependency, tables):
@@ -309,7 +299,7 @@ class ColumnTree:
             sources = [t for t in tables if t.name not in [d.table for d in column.dependencies]]
             if not sources:
                 raise LogicError(ExceptionType.ALIAS_WITH_NO_SOURCES, column)
-        _add_attributes(dependency, sources[0])
+        dependency.add_attributes(sources[0])
         self._graph.add_node(column)
 
     def _manage_wildcard(self, column, wildcard):
@@ -334,7 +324,7 @@ class ColumnTree:
 
         table = source_tables[0]
         if table.dataset:
-            _add_attributes(dependency, table)
+            dependency.add_attributes(table)
             self._graph.add_node(column)
         else:
             wildcards = [c for c in self._graph.nodes if not c.is_auxiliary and c.cte == table.name and c.is_wildcard]
