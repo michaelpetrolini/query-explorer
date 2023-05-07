@@ -119,6 +119,17 @@ def _columns(cte: str, token):
         yield _column(token, cte)
 
 
+def iterate(iterator):
+    index = -1
+
+    def next_token():
+        nonlocal index
+        index, token = iterator.token_next(index)
+        return token
+
+    return next_token
+
+
 class ColumnTree:
     def __init__(self):
         self._graph = nx.DiGraph()
@@ -200,31 +211,33 @@ class ColumnTree:
         cte = identifier[0].value
         self.generate(identifier[-1], cte)
 
-    def _cte_list(self, iterator):
-        index, token = iterator.token_next(-1)
+    def _cte_list(self, statement):
+        iterator = iterate(statement)
+        token = iterator()
         while token:
             if isinstance(token, Identifier):
                 self._cte(token)
-            index, token = iterator.token_next(index)
+            token = iterator()
 
-    def generate(self, iterator, cte: str = None):
+    def generate(self, statement, cte: str = None):
         columns = set()
         tables = set()
-        index, token = iterator.token_next(-1)
+        iterator = iterate(statement)
+        token = iterator()
         dml = False
         while token:
             if token.ttype == CTE:
-                index, token = iterator.token_next(index)
+                token = iterator()
                 self._cte_list(token) if isinstance(token, IdentifierList) else self._cte(token)
             elif token.ttype == DML:
                 dml = True
-                index, token = iterator.token_next(index)
+                token = iterator()
                 if token.value == "DISTINCT":
-                    index, token = iterator.token_next(index)
+                    token = iterator()
                 columns.update(_columns(cte, token))
             elif token.ttype == Keyword and token.value.split(' ')[-1] in ["FROM", "JOIN"]:
                 dml = False
-                index, token = iterator.token_next(index)
+                token = iterator()
                 tables.update(self._from(token))
             elif dml:
                 columns.update(_columns(cte, token))
@@ -234,9 +247,9 @@ class ColumnTree:
                 columns.update(_where(token, cte))
             elif token.ttype == Keyword and token.value.split(' ')[0] == "UNION":
                 while type(token) not in (Identifier, IdentifierList) and token.ttype != Wildcard:
-                    index, token = iterator.token_next(index)
+                    token = iterator()
                 _union(token, columns)
-            index, token = iterator.token_next(index)
+            token = iterator()
 
         self._add_columns_to_graph(columns, tables)
 
